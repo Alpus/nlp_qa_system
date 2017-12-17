@@ -1,1 +1,11 @@
-*.ipynb*
+# Auto files
+*.ipynb_*
+.idea
+__pycache__
+
+# Work files
+pipeline.ipynb
+
+# Data
+texts/
+

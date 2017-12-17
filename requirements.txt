@@ -1,9 +1,9 @@
+gensim
 morfessor
+nltk
 polyglot
 pycld2
 pyicu
 pymorphy2
+sortedcontainers
 tqdm
-
-nltk
-gensim
