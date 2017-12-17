@@ -1,10 +1,14 @@
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
+from gensim.models import KeyedVectors
+from scipy.spatial import KDTree
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sortedcontainers import SortedList
+from tqdm import tqdm
 
-from . import HTMLParser, RuTokenizer
+from . import HTMLParser, RuTokenizer, MystemTokenizer
+from .settings.paths import WORD2VEC_WEIGHTS_FILE
 
 
 class QA(metaclass=ABCMeta):
@@ -42,7 +46,8 @@ class FrequencyQA(RUQA):
 
         for filename, text in self.parser:
             paragraph_tokens = self.tokenizer(text)
-            overlap = self._calculate_overlap(paragraph_tokens, question_tokens)
+            overlap = self._calculate_overlap(paragraph_tokens,
+                                              question_tokens)
 
             best_n_weight_paragraph.add((-overlap, text))
 
@@ -78,3 +83,66 @@ class TfIdfQA(RUQA):
 
     def n_closest_paragraphs(self, question, n=1):
         return np.array(self._texts)[self._get_best_indexes(question, n)]
+
+
+class W2VQA(RUQA):
+    def __init__(self, url):
+        super().__init__(url)
+        self._w2v = KeyedVectors.load_word2vec_format(
+            WORD2VEC_WEIGHTS_FILE, binary=True)
+        self.tokenizer = MystemTokenizer()
+
+        self._texts = []
+        self._centroids = []
+        for filename, text in tqdm(self.parser.iterate_over_texts()):
+            centroid = self.calculate_centroid(text.lower())
+            if centroid is None:
+                continue
+            self._texts.append(text.lower())
+            self._centroids.append(centroid)
+        self._centroids = KDTree(self._centroids)
+
+    def calculate_centroid(self, text):
+        center = 0
+        num = 0
+        words = self.tokenizer(text).words()
+        for word in words:
+            if word in self._w2v:
+                center += self._w2v[word]
+                num += 1
+        if num == 0:
+            return None
+        return center / num
+
+    def calculate_wmd(self, question, text):
+        q_words = self.tokenizer(question).words()
+        t_words = self.tokenizer(text).words()
+
+        def filter_fn(word):
+            return word in self._w2v
+
+        q_words = list(filter(filter_fn, q_words))
+        t_words = list(filter(filter_fn, t_words))
+        return self._w2v.wmdistance(q_words, t_words)
+
+    def n_closest_paragraphs(self, question, n=1, mode='wmd', n_filter=20):
+        if mode == 'centroids':
+            q_centroid = self.calculate_centroid(question)
+            _, inds = self._centroids.query(q_centroid, k=n)
+            res = []
+            for ind in inds:
+                res.append(self._texts[ind])
+        elif mode == 'wmd':
+            q_centroid = self.calculate_centroid(question)
+            _, inds = self._centroids.query(q_centroid, k=n_filter)
+            texts_dist = []
+            for ind in inds:
+                texts_dist.append((self._texts[ind],
+                                   self.calculate_wmd(question,
+                                                      self._texts[ind])))
+            texts_dist.sort(key=lambda text_dist: text_dist[1])
+            return [text for text, dist in texts_dist[:n]]
+        else:
+            raise NotImplementedError("mode {} is not supported".format(mode))
+
+        return res

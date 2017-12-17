@@ -13,6 +13,7 @@ ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en
 COPY requirements.txt /requirements.txt
 RUN pip3 install --upgrade pip && pip3 install -r requirements.txt
 
+ENV W2V_WEIGHTS_FILE=word2vec_weights.bin
 COPY download_data.sh /download_data.sh
 RUN /download_data.sh
 
