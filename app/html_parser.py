@@ -1,4 +1,5 @@
 import os
+import pathlib
 import pickle
 import re
 
@@ -50,7 +51,7 @@ class HTMLParser:
 
     def parse(self, path_to_save=TEXTS_DIR):
         try:
-            os.mkdir(path_to_save)
+            pathlib.Path(path_to_save).mkdir(parents=True, exist_ok=True)
         except:
             logger.info('Folder "{}" already exists'.format(path_to_save))
             self.num_texts = len(os.listdir(path_to_save))
