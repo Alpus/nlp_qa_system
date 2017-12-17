@@ -1,20 +1,8 @@
-import copy
-import os
-import pickle
-import re
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
-import pandas as pd
-import pymorphy2
-import tqdm
-from bs4 import BeautifulSoup
-from nltk.tokenize import RegexpTokenizer, WhitespaceTokenizer
-from polyglot.text import Text
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sortedcontainers import SortedList
-from urllib import request
-from urllib.parse import urljoin, urlparse
 
 from . import HTMLParser, RuTokenizer
 
