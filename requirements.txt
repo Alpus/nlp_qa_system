@@ -1,0 +1,9 @@
+morfessor
+polyglot
+pycld2
+pyicu
+pymorphy2
+tqdm
+
+nltk
+gensim
