@@ -97,7 +97,7 @@ class TfIdfQA:
     def get_best_indexes(self, question, n):
         oh = self._build_one_hot_vector_by_string_(question)
         scores = (self._tokens * oh)
-
+        scores[scores == 0] = -1e9
         return scores.argsort()[-n:][::-1]
 
     def n_closest_paragraphs(self, question, n=1):
@@ -108,12 +108,22 @@ class TfIdf2stepQA:
     def __init__(self, pageHandler, n_best_pages=1):
         self.pageHandler = pageHandler
         self.n_best_pages = n_best_pages
-        self.pageQA = TfIdfQA(pageHandler.pages)
+        self.tokenizer = RuTokenizer(annotators={'lemma', 'pos', 'ner'})
+        self.pageQA = TfIdfQA(self.get_tokenized_text(pageHandler.pages))
+
+
+    def get_tokenized_text(self, texts):
+        tokenized_texts = []
+        for text in texts:
+            tokenized_texts.append(' '.join(self.tokenizer(text).words(True)))
+        return tokenized_texts
 
     def n_closest_paragraphs(self, question, n=1):
+        question = ' '.join(self.tokenizer(question).words(True))
         best_indx = self.pageQA.get_best_indexes(question, self.n_best_pages)
         best_pages = []
         for i in best_indx:
             best_pages.extend(self.pageHandler[i])
-        paragQA = TfIdfQA(best_pages)
-        return paragQA.n_closest_paragraphs(question, n)
+        paragQA = TfIdfQA(self.get_tokenized_text(best_pages))
+        indxes = paragQA.get_best_indexes(question, n)
+        return np.array(best_pages)[indxes]
