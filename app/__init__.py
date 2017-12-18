@@ -1,3 +1,3 @@
-from .html_parser import HTMLParser
+from .html_parser import *
 from .tokenizers import RuTokenizer
-from .qa import FrequencyQA, TfIdfQA
+from .qa import *
