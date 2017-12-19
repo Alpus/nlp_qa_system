@@ -57,7 +57,7 @@ class FrequencyQA(RUQA):
         return [text for weight, text in best_n_weight_paragraph]
 
 
-class TfIdfQA(RUQA):
+class UrlTfIdfQA(RUQA):
     def __init__(self, url):
         super().__init__(url)
         self._texts = []
@@ -146,3 +146,52 @@ class W2VQA(RUQA):
             raise NotImplementedError("mode {} is not supported".format(mode))
 
         return res
+
+
+class TfIdfQA:
+    def __init__(self, texts):
+        self.texts = texts
+        self._tfIdf = TfidfVectorizer()
+        self._tokens = self._tfIdf.fit_transform(self.texts)
+        self._word_dict = self._tfIdf.vocabulary_
+
+    def _build_one_hot_vector_by_string_(self, string):
+        description = np.zeros(len(self._word_dict))
+        for word in string.split():
+            if word in self._word_dict:
+                description[self._word_dict[word]] = 1
+        return description
+
+    def get_best_indexes(self, question, n):
+        oh = self._build_one_hot_vector_by_string_(question)
+        scores = (self._tokens * oh)
+        scores[scores == 0] = -1e9
+        return scores.argsort()[-n:][::-1]
+
+    def n_closest_paragraphs(self, question, n=1):
+        return np.array(self.texts)[self.get_best_indexes(question, n)]
+
+
+class TfIdf2stepQA:
+    def __init__(self, pageHandler, n_best_pages=1):
+        self.pageHandler = pageHandler
+        self.n_best_pages = n_best_pages
+        self.tokenizer = RuTokenizer(annotators={'lemma', 'pos', 'ner'})
+        self.pageQA = TfIdfQA(self.get_tokenized_text(pageHandler.pages))
+
+
+    def get_tokenized_text(self, texts):
+        tokenized_texts = []
+        for text in texts:
+            tokenized_texts.append(' '.join(self.tokenizer(text).words(True)))
+        return tokenized_texts
+
+    def n_closest_paragraphs(self, question, n=1):
+        question = ' '.join(self.tokenizer(question).words(True))
+        best_indx = self.pageQA.get_best_indexes(question, self.n_best_pages)
+        best_pages = []
+        for i in best_indx:
+            best_pages.extend(self.pageHandler[i])
+        paragQA = TfIdfQA(self.get_tokenized_text(best_pages))
+        indxes = paragQA.get_best_indexes(question, n)
+        return np.array(best_pages)[indxes]
