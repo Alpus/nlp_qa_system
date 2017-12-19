@@ -1,7 +1,9 @@
 import copy
+import re
 from abc import ABCMeta, abstractmethod
 
 import pymorphy2
+from pymystem3 import Mystem
 from nltk.tokenize import RegexpTokenizer, WhitespaceTokenizer
 from polyglot.text import Text
 
@@ -190,3 +192,50 @@ class RuTokenizer(Tokenizer):
             data.append((token, token_ws, spans[i], pos, lemma, ent_type))
 
         return Tokens(data, self.annotators, opts={'non_ent': ''})
+
+
+class MystemTokenizer:
+    def __init__(self):
+        self.mystem = Mystem()
+        self.text = None
+
+    def __call__(self, text):
+        self.text = text
+        return self
+
+    def words(self, upos=False):
+        words = []
+        for token in self.mystem.analyze(self.text):
+            if 'analysis' in token:
+                if len(token['analysis']) != 0:
+                    grapheme = re.match("^\w+",
+                                        token['analysis'][0]['gr']).group(0)
+                    lexeme = token['analysis'][0]['lex']
+                else:
+                    grapheme = 'S'
+                    lexeme = token['text']
+                if upos:
+                    grapheme = self.convert_to_UPOS(grapheme)
+                words.append('_'.join([lexeme, grapheme]))
+        return words
+
+    def convert_to_UPOS(self, grapheme):
+        mapping = {
+            'A': 'ADJ',
+            'ADV': 'ADV',
+            'ADVPRO': 'ADV',
+            'ANUM': 'ADJ',
+            'APRO': 'DET',
+            'COM': 'ADJ',
+            'CONJ': 'SCONJ',
+            'INTJ': 'INTJ',
+            'NONLEX': 'X',
+            'NUM': 'NUM',
+            'PART': 'PART',
+            'PR': 'ADP',
+            'S': 'NOUN',
+            'SPRO': 'PRON',
+            'UNKN': 'X',
+            'V': 'VERB',
+        }
+        return mapping[grapheme]
