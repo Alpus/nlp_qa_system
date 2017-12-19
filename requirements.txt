@@ -1,4 +1,5 @@
 bs4==0.0.1
+gensim==3.2.0
 jupyter==1.0.0
 morfessor==2.0.3
 nltk==3.2.5
@@ -11,3 +12,5 @@ scikit-learn==0.19.1
 scipy==1.0.0
 sortedcontainers==1.5.9 
 tqdm==4.19.5
+pymystem3==0.1.9
+pyemd==0.4.4
