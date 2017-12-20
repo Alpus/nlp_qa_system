@@ -102,31 +102,42 @@ class W2VQA(RUQA):
 
         self._tfIdf = TfidfVectorizer(lowercase=False)
         self._tokens = self._tfIdf.fit_transform(self._texts_lemm)
+        self._word_dict = self._tfIdf.vocabulary_
 
         texts_with_centroids = []
         self._centroids = []
         ind = 0
-        for page in self.pageHandler:
-            for text in self._texts_lemm:
-                centroid = self.calculate_centroid(text, ind)
-                if centroid is None:
-                    continue
-                texts_with_centroids.append(text)
-                self._centroids.append(centroid)
-                ind += 1
-        # self._centroids = KDTree(self._centroids)
+        for text in self._texts_lemm:
+            centroid = self.calculate_text_centroid(text, ind)
+            if centroid is None:
+                continue
+            texts_with_centroids.append(text)
+            self._centroids.append(centroid)
+            ind += 1
+        self._centroids = KDTree(np.array(self._centroids))
         self._texts = texts_with_centroids
 
-    def calculate_centroid(self, text, ind):
-        center = np.zeros_like(self._w2v.index2word[0])
+    def calculate_text_centroid(self, text, text_ind):
+        center = np.zeros_like(self._w2v.index2word[0], dtype=np.float32)
         words = text.split(' ')
         denominator = 0
         for word in words:
-            if word in self._w2v and word in self._tfIdf.vocabulary_:
-                print(ind, word)
-                tfidf = self._tokens[ind, self._tfIdf.vocabulary_[word]]
-                center += self._w2v[word] * tfidf
+            if word in self._w2v and word in self._word_dict:
+                tfidf = self._tokens[text_ind, self._word_dict[word]]
+                center = center + tfidf * self._w2v[word]
                 denominator += tfidf
+        if denominator == 0:
+            return None
+        return center / denominator
+
+    def calculate_question_centroid(self, question):
+        center = np.zeros_like(self._w2v.index2word[0], dtype=np.float32)
+        words = self.tokenizer(question.lower()).words()
+        denominator = 0
+        for word in words:
+            if word in self._w2v:
+                center = center + self._w2v[word]
+                denominator += 1
         if denominator == 0:
             return center
         return center / denominator
@@ -142,15 +153,14 @@ class W2VQA(RUQA):
         t_words = list(filter(filter_fn, t_words))
         return self._w2v.wmdistance(q_words, t_words)
 
-    def n_closest_paragraphs(self, question, n=1, mode='wmd', n_filter=20):
+    def n_closest_paragraphs(self, question, n=1, mode='wmd', n_filter=40):
+        q_centroid = self.calculate_question_centroid(question)
         if mode == 'centroids':
-            q_centroid = self.calculate_centroid(question)
             _, inds = self._centroids.query(q_centroid, k=n)
             res = []
             for ind in inds:
                 res.append(self._texts[ind])
         elif mode == 'wmd':
-            q_centroid = self.calculate_centroid(question)
             _, inds = self._centroids.query(q_centroid, k=n_filter)
             texts_dist = []
             for ind in inds:
