@@ -149,8 +149,6 @@ class RuTokenizer(Tokenizer):
         self.rt = RegexpTokenizer(r'\w+')
 
     def __call__(self, text):
-        # к нижнему регистру
-        text = text.lower()
 
         # We don't treat new lines as tokens.
         clean_text = text.replace('\n', ' ')

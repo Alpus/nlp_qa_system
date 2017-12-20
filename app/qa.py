@@ -27,9 +27,8 @@ class QA(metaclass=ABCMeta):
 
 
 class RUQA(QA):
-    def __init__(self, url):
-        self.parser = HTMLParser(url)
-        self.parser.parse()
+    def __init__(self, pageHandler):
+        self.pageHandler = pageHandler
         self.tokenizer = RuTokenizer(annotators={'lemma', 'pos', 'ner'})
 
 
@@ -43,26 +42,27 @@ class FrequencyQA(RUQA):
         question_tokens = self.tokenizer(question)
 
         best_n_weight_paragraph = SortedList()
+        for page in self.pageHandler:
+            for text in page:
+                paragraph_tokens = self.tokenizer(text)
+                overlap = self._calculate_overlap(paragraph_tokens,
+                                                  question_tokens)
 
-        for filename, text in self.parser:
-            paragraph_tokens = self.tokenizer(text)
-            overlap = self._calculate_overlap(paragraph_tokens,
-                                              question_tokens)
+                best_n_weight_paragraph.add((-overlap, text))
 
-            best_n_weight_paragraph.add((-overlap, text))
-
-            if len(best_n_weight_paragraph) > n:
-                best_n_weight_paragraph.pop()
+                if len(best_n_weight_paragraph) > n:
+                    best_n_weight_paragraph.pop()
 
         return [text for weight, text in best_n_weight_paragraph]
 
 
-class UrlTfIdfQA(RUQA):
-    def __init__(self, url):
-        super().__init__(url)
+class PHTfIdfQA(RUQA):
+    def __init__(self, pageHandler):
+        super().__init__(pageHandler)
         self._texts = []
-        for filename, text in self.parser.iterate_over_texts():
-            self._texts.append(text.lower())
+        for page in self.pageHandler:
+            for text in page:
+                self._texts.append(text.lower())
 
         self._tfIdf = TfidfVectorizer()
         self._tokens = self._tfIdf.fit_transform(self._texts)
@@ -86,20 +86,21 @@ class UrlTfIdfQA(RUQA):
 
 
 class W2VQA(RUQA):
-    def __init__(self, url):
-        super().__init__(url)
+    def __init__(self, pageHandler):
+        super().__init__(pageHandler)
         self._w2v = KeyedVectors.load_word2vec_format(
             WORD2VEC_WEIGHTS_FILE, binary=True)
         self.tokenizer = MystemTokenizer()
 
         self._texts = []
         self._centroids = []
-        for filename, text in tqdm(self.parser.iterate_over_texts()):
-            centroid = self.calculate_centroid(text.lower())
-            if centroid is None:
-                continue
-            self._texts.append(text.lower())
-            self._centroids.append(centroid)
+        for page in self.pageHandler:
+            for text in tqdm(page):
+                centroid = self.calculate_centroid(text.lower())
+                if centroid is None:
+                    continue
+                self._texts.append(text.lower())
+                self._centroids.append(centroid)
         self._centroids = KDTree(self._centroids)
 
     def calculate_centroid(self, text):
@@ -178,7 +179,6 @@ class TfIdf2stepQA:
         self.n_best_pages = n_best_pages
         self.tokenizer = RuTokenizer(annotators={'lemma', 'pos', 'ner'})
         self.pageQA = TfIdfQA(self.get_tokenized_text(pageHandler.pages))
-
 
     def get_tokenized_text(self, texts):
         tokenized_texts = []
