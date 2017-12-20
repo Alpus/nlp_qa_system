@@ -5,7 +5,6 @@ from gensim.models import KeyedVectors
 from scipy.spatial import KDTree
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sortedcontainers import SortedList
-from tqdm import tqdm
 
 from . import HTMLParser, RuTokenizer, MystemTokenizer
 from .settings.paths import WORD2VEC_WEIGHTS_FILE
@@ -86,34 +85,51 @@ class PHTfIdfQA(RUQA):
 
 
 class W2VQA(RUQA):
-    def __init__(self, pageHandler):
+    def __init__(self, pageHandler, w2v):
         super().__init__(pageHandler)
-        self._w2v = KeyedVectors.load_word2vec_format(
-            WORD2VEC_WEIGHTS_FILE, binary=True)
+        # self._w2v = KeyedVectors.load_word2vec_format(
+            # WORD2VEC_WEIGHTS_FILE, binary=True)
+        self._w2v = w2v
         self.tokenizer = MystemTokenizer()
 
         self._texts = []
-        self._centroids = []
+        self._texts_lemm = []
         for page in self.pageHandler:
-            for text in tqdm(page):
-                centroid = self.calculate_centroid(text.lower())
+            for text in page:
+                self._texts.append(text)
+                text = ' '.join(self.tokenizer(text.lower()).words())
+                self._texts_lemm.append(text)
+
+        self._tfIdf = TfidfVectorizer(lowercase=False)
+        self._tokens = self._tfIdf.fit_transform(self._texts_lemm)
+
+        texts_with_centroids = []
+        self._centroids = []
+        ind = 0
+        for page in self.pageHandler:
+            for text in self._texts_lemm:
+                centroid = self.calculate_centroid(text, ind)
                 if centroid is None:
                     continue
-                self._texts.append(text.lower())
+                texts_with_centroids.append(text)
                 self._centroids.append(centroid)
-        self._centroids = KDTree(self._centroids)
+                ind += 1
+        # self._centroids = KDTree(self._centroids)
+        self._texts = texts_with_centroids
 
-    def calculate_centroid(self, text):
-        center = 0
-        num = 0
-        words = self.tokenizer(text).words()
+    def calculate_centroid(self, text, ind):
+        center = np.zeros_like(self._w2v.index2word[0])
+        words = text.split(' ')
+        denominator = 0
         for word in words:
-            if word in self._w2v:
-                center += self._w2v[word]
-                num += 1
-        if num == 0:
-            return None
-        return center / num
+            if word in self._w2v and word in self._tfIdf.vocabulary_:
+                print(ind, word)
+                tfidf = self._tokens[ind, self._tfIdf.vocabulary_[word]]
+                center += self._w2v[word] * tfidf
+                denominator += tfidf
+        if denominator == 0:
+            return center
+        return center / denominator
 
     def calculate_wmd(self, question, text):
         q_words = self.tokenizer(question).words()
