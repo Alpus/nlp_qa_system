@@ -85,11 +85,10 @@ class PHTfIdfQA(RUQA):
 
 
 class W2VQA(RUQA):
-    def __init__(self, pageHandler, w2v):
+    def __init__(self, pageHandler):
         super().__init__(pageHandler)
-        # self._w2v = KeyedVectors.load_word2vec_format(
-            # WORD2VEC_WEIGHTS_FILE, binary=True)
-        self._w2v = w2v
+        self._w2v = KeyedVectors.load_word2vec_format(
+             WORD2VEC_WEIGHTS_FILE, binary=True)
         self.tokenizer = MystemTokenizer()
 
         self._texts = []
@@ -115,7 +114,7 @@ class W2VQA(RUQA):
             self._centroids.append(centroid)
             ind += 1
         self._centroids = KDTree(np.array(self._centroids))
-        self._texts = texts_with_centroids
+
 
     def calculate_text_centroid(self, text, text_ind):
         center = np.zeros_like(self._w2v.index2word[0], dtype=np.float32)
